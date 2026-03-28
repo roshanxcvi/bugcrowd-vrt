@@ -20,25 +20,6 @@ Interactive visual explorer for Bugcrowd's Vulnerability Rating Taxonomy (VRT). 
 
 Server-Side Injection · XSS · Broken Authentication · Sensitive Data Exposure · Server Misconfig · IDOR · CSRF · Unvalidated Redirects · Insufficient Security Config · Broken Access Control · Application-Level DoS · Cryptographic Issues · Mobile Security · AI/ML Security · Blockchain/dApp · Indicators of Compromise · Automotive Security · Client-Side Injection
 
-## Quick Start
-
-Open `index.html` in any browser. That's it.
-
-## Deploy on GitHub Pages
-
-```bash
-git init
-git add index.html README.md
-git commit -m "initial commit"
-git branch -M main
-git remote add origin https://github.com/roshanxcvi/bugcrowd-vrt.git
-git push -u origin main
-```
-
-Then go to **Settings → Pages → Deploy from branch → main → Save**.
-
-Your site will be live at `https://roshanxcvi.github.io/bugcrowd-vrt/`
-
 ## Data Source
 
 Based on [Bugcrowd's open-source VRT](https://github.com/bugcrowd/vulnerability-rating-taxonomy) (Apache 2.0).
