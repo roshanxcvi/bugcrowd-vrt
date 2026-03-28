@@ -1,0 +1,1064 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bugcrowd VRT - Interactive Mind Map</title>
+  <meta name="description" content="Interactive mind-map explorer for Bugcrowd's Vulnerability Rating Taxonomy (VRT). Browse vulnerability categories, severity ratings, and detailed descriptions. Developed by roshanxcvi.">
+  <meta name="author" content="roshanxcvi">
+  <meta name="keywords" content="bugcrowd, VRT, vulnerability, security, bug bounty, OSINT, taxonomy, mind map">
+  <meta property="og:title" content="Bugcrowd VRT - Interactive Mind Map">
+  <meta property="og:description" content="Interactive explorer for Bugcrowd's Vulnerability Rating Taxonomy. 18 categories, 100+ vulnerability types with severity ratings and descriptions.">
+  <meta property="og:type" content="website">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='16' cy='16' r='14' fill='%233a7bd5'/><text x='16' y='22' text-anchor='middle' fill='white' font-size='18' font-weight='bold'>V</text></svg>">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body, #root { width: 100%; height: 100%; overflow: hidden; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+const { useState, useCallback, useRef, useEffect, useMemo } = React;
+
+
+const VRT = {
+  id: "root",
+  name: "Bugcrowd VRT",
+  desc: "Bugcrowd Vulnerability Rating Taxonomy — P1 (Critical) to P5 (Informational). Click any node to explore.",
+  children: [
+    {
+      id: "ssi", name: "Server-Side Injection", priority: null,
+      desc: "Attacker input executed by the server. Among the most dangerous — can lead to full system compromise.",
+      children: [
+        { id: "rce", name: "Remote Code Execution (RCE)", priority: 1, desc: "Execute arbitrary code on server. Full takeover. Example: uploading malicious PHP or exploiting unsafe eval().", children: [] },
+        { id: "sqli", name: "SQL Injection", priority: null, desc: "Inject SQL through user input to read/modify/delete database contents.", children: [
+          { id: "sqli_b", name: "Blind", priority: 2, desc: "App responds differently to true/false queries. Data extracted bit by bit. Example: ' AND 1=1--" },
+          { id: "sqli_e", name: "Error-Based", priority: 2, desc: "SQL errors reflected in response, leaking DB structure and data." },
+          { id: "sqli_t", name: "Time-Based", priority: 2, desc: "Uses time delays to infer data. Example: ' OR IF(1=1,SLEEP(5),0)--" },
+        ]},
+        { id: "ssti", name: "Template Injection (SSTI)", priority: 1, desc: "Inject template syntax (Jinja2, Twig) executed server-side. Can escalate to RCE.", children: [] },
+        { id: "xxe", name: "XXE Injection", priority: null, desc: "Exploit XML parser to read files, SSRF, or DoS via external entities.", children: [
+          { id: "xxe_s", name: "Internal SSRF", priority: 2, desc: "XXE requests internal resources like AWS metadata at 169.254.169.254." },
+          { id: "xxe_f", name: "File Read", priority: 2, desc: "XXE reads local files. Example: file:///etc/passwd leaks system info." },
+          { id: "xxe_x", name: "External", priority: 4, desc: "XXE makes outbound requests. Confirms vuln, enables OOB exfiltration." },
+        ]},
+        { id: "ldap", name: "LDAP Injection", priority: 2, desc: "Manipulate LDAP queries for auth bypass or directory info extraction.", children: [] },
+        { id: "ssrf", name: "SSRF", priority: null, desc: "Make the server send requests to internal/external targets behind firewall.", children: [
+          { id: "ssrf_ih", name: "Internal High Impact", priority: 2, desc: "Reaches cloud metadata, admin panels, databases. Full infrastructure compromise." },
+          { id: "ssrf_il", name: "Internal Low Impact", priority: 4, desc: "Port scanning, non-sensitive internal pages. Limited impact." },
+          { id: "ssrf_eh", name: "External High Impact", priority: 3, desc: "Bypasses IP allowlists, abuses trusted server identity." },
+          { id: "ssrf_el", name: "External Low Impact", priority: 5, desc: "Confirms vulnerability but nothing sensitive accessible." },
+        ]},
+        { id: "cs", name: "Content Spoofing", priority: null, desc: "Inject or manipulate content displayed to users.", children: [
+          { id: "cs_if", name: "iframe Injection", priority: 4, desc: "Inject iframe loading external content for phishing overlays." },
+          { id: "cs_ai", name: "Auth Injection", priority: 3, desc: "Manipulate OAuth/SAML flows to steal auth tokens." },
+          { id: "cs_hi", name: "HTML Injection", priority: 5, desc: "Inject HTML (no script). Deface content or fake forms." },
+        ]},
+        { id: "hrs", name: "HTTP Smuggling", priority: 3, desc: "Exploit front/back-end request boundary disagreements. Bypass security, poison caches.", children: [] },
+      ],
+    },
+    {
+      id: "xss", name: "Cross-Site Scripting (XSS)", priority: null,
+      desc: "Inject malicious JavaScript into pages viewed by others. Steal cookies, sessions, deface, act as victim.",
+      children: [
+        { id: "xss_st", name: "Stored XSS", priority: null, desc: "Script saved on server, executes for every visitor. Most dangerous XSS.", children: [
+          { id: "xss_sp", name: "Priv to Admin", priority: 2, desc: "Privileged user targets admins. Can escalate to admin account takeover." },
+          { id: "xss_sn", name: "Non-Priv to Anyone", priority: 2, desc: "Any user injects XSS affecting all visitors via comments/profiles." },
+          { id: "xss_ss", name: "Self-XSS", priority: 5, desc: "Only affects attacker themselves. Very low impact alone." },
+        ]},
+        { id: "xss_re", name: "Reflected XSS", priority: null, desc: "Script reflected in server response. Victim must click crafted link.", children: [
+          { id: "xss_ra", name: "All Users", priority: 3, desc: "On public pages. Any visitor clicking the link is affected." },
+          { id: "xss_ru", name: "Authenticated", priority: 3, desc: "On auth pages. Only logged-in users vulnerable." },
+          { id: "xss_rs", name: "Self-XSS", priority: 5, desc: "Only user can trigger on themselves." },
+        ]},
+        { id: "xss_dm", name: "DOM-Based XSS", priority: null, desc: "Client-side JS unsafely processes input. Payload never reaches server.", children: [
+          { id: "xss_da", name: "All Pages", priority: 3, desc: "In shared JS library. Wide blast radius." },
+          { id: "xss_dl", name: "Limited Pages", priority: 4, desc: "On specific pages only. Limited surface." },
+        ]},
+      ],
+    },
+    {
+      id: "ba", name: "Broken Authentication", priority: null,
+      desc: "Flaws in auth — bypass login, hijack sessions, escalate privileges. Leads to account takeover.",
+      children: [
+        { id: "ba_ab", name: "Auth Bypass", priority: 1, desc: "Completely bypass login without credentials. Manipulate URL params or role cookies.", children: [] },
+        { id: "ba_2f", name: "2FA Bypass", priority: 2, desc: "Circumvent two-factor auth. Access post-2FA pages directly or brute-force OTP.", children: [] },
+        { id: "ba_pe", name: "Privilege Escalation", priority: null, desc: "Gain higher privileges than intended.", children: [
+          { id: "pe_dc", name: "Default Creds", priority: 2, desc: "Factory-default passwords (admin:admin). Just log in." },
+          { id: "pe_hz", name: "Horizontal", priority: 2, desc: "Access another user's data. Change user_id=123 to 456." },
+          { id: "pe_vt", name: "Vertical", priority: 1, desc: "Regular user becomes admin. Change role=user to role=admin." },
+        ]},
+        { id: "ba_si", name: "Session Invalidation Fail", priority: null, desc: "Sessions stay active when they should terminate.", children: [
+          { id: "si_lo", name: "On Logout", priority: 4, desc: "Session valid after logout. Old cookie still works." },
+          { id: "si_pr", name: "On Password Reset", priority: 3, desc: "Old sessions active after password change." },
+          { id: "si_pc", name: "On Permission Change", priority: 3, desc: "Demoted user keeps old privileges." },
+          { id: "si_lt", name: "Long Timeout", priority: 4, desc: "Sessions valid over a week. Huge exploitation window." },
+        ]},
+        { id: "ba_wl", name: "Weak Login", priority: null, desc: "Login mechanism weaknesses.", children: [
+          { id: "wl_ht", name: "Over HTTP", priority: 3, desc: "Login over unencrypted HTTP. Credentials visible on network." },
+          { id: "wl_nr", name: "No Rate Limit", priority: 4, desc: "Unlimited login attempts. Brute force at high speed." },
+          { id: "wl_cs", name: "Credential Stuffing", priority: 4, desc: "No defense against breached credential lists." },
+        ]},
+        { id: "ba_ue", name: "Username Enumeration", priority: null, desc: "App reveals if username exists. Helps build target lists.", children: [
+          { id: "ue_nb", name: "Non-Brute Force", priority: 5, desc: "Different error messages reveal valid accounts." },
+          { id: "ue_bf", name: "Brute Force", priority: 4, desc: "Automated enumeration via timing or error codes." },
+        ]},
+      ],
+    },
+    {
+      id: "sd", name: "Sensitive Data Exposure", priority: null,
+      desc: "App exposes credentials, keys, personal info. Can be immediate threats or recon info.",
+      children: [
+        { id: "sd_cr", name: "Critical Data", priority: null, desc: "High-value secrets granting direct system access.", children: [
+          { id: "cr_pw", name: "Password Disclosure", priority: 1, desc: "Passwords in plaintext in API responses, logs. Direct account takeover." },
+          { id: "cr_ak", name: "Private API Keys", priority: 1, desc: "Secret keys in client code or repos. Access payment/cloud services." },
+          { id: "cr_aw", name: "AWS Credentials", priority: 1, desc: "AWS keys exposed. Full cloud infrastructure takeover." },
+          { id: "cr_ip", name: "Internal IP Leak", priority: 5, desc: "Private IPs in headers/errors. Network mapping aid." },
+        ]},
+        { id: "sd_nc", name: "Non-Critical Data", priority: null, desc: "Sensitive but not immediately exploitable.", children: [
+          { id: "nc_sc", name: "Secrets Disclosure", priority: 3, desc: "DB strings, JWT keys, salts leaked. Enables other attacks." },
+          { id: "nc_ud", name: "User Data", priority: 3, desc: "Emails, phones exposed. May violate GDPR/CCPA." },
+          { id: "nc_tk", name: "Token via Referer", priority: 4, desc: "Auth tokens in URLs leak via HTTP Referer header." },
+        ]},
+        { id: "sd_pi", name: "PII Leakage", priority: null, desc: "Names, SSNs, medical records exposed. Severity varies.", children: [] },
+        { id: "sd_er", name: "Debug/Error Page", priority: 5, desc: "Stack traces, file paths, DB queries exposed. Attacker roadmap.", children: [] },
+      ],
+    },
+    {
+      id: "sm", name: "Server Misconfig", priority: null,
+      desc: "Improper server configuration. Often easiest to find and fix.",
+      children: [
+        { id: "sm_dn", name: "DNS Misconfig", priority: null, desc: "DNS records pointing to uncontrolled resources.", children: [
+          { id: "dn_st", name: "Subdomain Takeover", priority: 3, desc: "CNAME to unclaimed resource. Attacker serves content on your subdomain." },
+          { id: "dn_sh", name: "High Impact Takeover", priority: 2, desc: "Takeover on subdomain with parent-domain cookies. Steal sessions." },
+          { id: "dn_zt", name: "Zone Transfer", priority: 4, desc: "DNS allows AXFR. Exposes all records and internal hosts." },
+        ]},
+        { id: "sm_ml", name: "Mail Misconfig", priority: null, desc: "Missing SPF/DKIM/DMARC enables email spoofing.", children: [
+          { id: "ml_sf", name: "Missing SPF", priority: 4, desc: "No SPF record. Any server sends emails as your domain." },
+          { id: "ml_dm", name: "Missing DMARC", priority: 4, desc: "Spoofed emails not rejected even if SPF/DKIM fail." },
+          { id: "ml_sp", name: "Email Spoofing", priority: null, desc: "Demonstrated spoofing. Enables BEC, phishing." },
+        ]},
+        { id: "sm_dl", name: "Directory Listing", priority: null, desc: "Server shows directory contents without index.", children: [
+          { id: "dl_ns", name: "Non-Sensitive", priority: 5, desc: "Only non-sensitive files listed." },
+          { id: "dl_se", name: "Sensitive Data", priority: 3, desc: "Exposes backups, configs, source code." },
+        ]},
+        { id: "sm_dc", name: "Default Credentials", priority: 2, desc: "Factory-default login on servers (admin/admin).", children: [] },
+        { id: "sm_nr", name: "No Rate Limiting", priority: null, desc: "Forms have no throttling. Abuse at scale.", children: [
+          { id: "nr_rg", name: "Registration", priority: 5, desc: "Unlimited accounts. Spam and abuse." },
+          { id: "nr_sm", name: "SMS Trigger", priority: 4, desc: "Unlimited SMS. Drains budget, harasses." },
+          { id: "nr_em", name: "Email Trigger", priority: 4, desc: "Unlimited emails. Domain blacklisting." },
+        ]},
+      ],
+    },
+    {
+      id: "id", name: "IDOR", priority: null,
+      desc: "Change object IDs in requests to access other users data. Broken authorization check.",
+      children: [
+        { id: "id_rd", name: "Read Access", priority: null, desc: "Read others data by changing IDs.", children: [
+          { id: "rd_se", name: "Sensitive Data", priority: 2, desc: "Access invoices, messages, medical records of others." },
+          { id: "rd_ns", name: "Non-Sensitive", priority: 4, desc: "Public-ish info. Confirms broken access control." },
+        ]},
+        { id: "id_wr", name: "Write Access", priority: null, desc: "Modify or delete others data.", children: [
+          { id: "wr_cd", name: "Create / Delete", priority: 2, desc: "Create/delete others resources via ID manipulation." },
+          { id: "wr_md", name: "Modify", priority: 2, desc: "Modify others profile/data via PUT with changed ID." },
+        ]},
+      ],
+    },
+    {
+      id: "cf", name: "CSRF", priority: null,
+      desc: "Trick authenticated users into unwanted requests. Browser auto-includes cookies.",
+      children: [
+        { id: "cf_ap", name: "Application-Wide", priority: null, desc: "Entire app lacks CSRF protections.", children: [
+          { id: "ap_no", name: "No Protection", priority: 3, desc: "No tokens or origin checks. Any site triggers actions." },
+          { id: "ap_nv", name: "Token Not Validated", priority: 3, desc: "Tokens present but unchecked server-side." },
+          { id: "ap_fx", name: "Token Fixation", priority: 3, desc: "Tokens reusable or predictable." },
+        ]},
+        { id: "cf_at", name: "Account Takeover", priority: null, desc: "CSRF on account-critical actions.", children: [
+          { id: "at_em", name: "Change Email", priority: 2, desc: "CSRF changes email then forgot password for full takeover." },
+          { id: "at_pw", name: "Change Password", priority: 2, desc: "CSRF changes password. Victim locked out." },
+        ]},
+      ],
+    },
+    {
+      id: "ur", name: "Unvalidated Redirects", priority: null,
+      desc: "App redirects to unvalidated URLs. Used for phishing with trusted domain.",
+      children: [
+        { id: "ur_or", name: "Open Redirect", priority: null, desc: "Redirect to attacker URL via trusted domain.", children: [
+          { id: "or_gt", name: "GET-Based", priority: 4, desc: "Redirect in GET param. Easy — just craft a link." },
+          { id: "or_pt", name: "POST-Based", priority: 4, desc: "Via POST only. Needs auto-submitting form." },
+          { id: "or_hd", name: "Header-Based", priority: 5, desc: "Via HTTP headers. Very hard to exploit." },
+        ]},
+        { id: "ur_tn", name: "Tabnabbing", priority: 5, desc: "target=_blank without noopener. New page controls original tab.", children: [] },
+      ],
+    },
+    {
+      id: "ic", name: "Insufficient Security Config", priority: null,
+      desc: "Missing hardening — weak passwords, missing headers. Makes other attacks easier.",
+      children: [
+        { id: "ic_wp", name: "Weak Password Policy", priority: null, desc: "Allows weak passwords.", children: [
+          { id: "wp_ln", name: "No Min Length", priority: 4, desc: "1-char passwords accepted." },
+          { id: "wp_cx", name: "No Complexity", priority: 5, desc: "No mixed chars required. '123456' accepted." },
+        ]},
+        { id: "ic_bf", name: "No Brute Force Protection", priority: 4, desc: "No lockout, CAPTCHA, or delays. Unlimited attempts.", children: [] },
+        { id: "ic_sf", name: "Missing Secure Flag", priority: 5, desc: "Session cookies sent over HTTP too.", children: [] },
+        { id: "ic_ho", name: "Missing HttpOnly", priority: 5, desc: "Cookies accessible to JS. XSS steals sessions.", children: [] },
+        { id: "ic_cj", name: "Clickjacking", priority: null, desc: "App embeddable in invisible iframe.", children: [
+          { id: "cj_se", name: "Sensitive Action", priority: 4, desc: "Clickjack on delete, purchases, permissions." },
+          { id: "cj_ns", name: "Non-Sensitive", priority: 5, desc: "Clickjack on likes, follows. No real impact." },
+        ]},
+      ],
+    },
+    {
+      id: "bc", name: "Broken Access Control", priority: null,
+      desc: "Users act outside permissions. Most common critical vulnerability category.",
+      children: [
+        { id: "bc_pe", name: "Privilege Escalation", priority: null, desc: "Gain unauthorized higher privileges.", children: [
+          { id: "bc_hz", name: "Horizontal", priority: 2, desc: "User A accesses User B data by changing ID." },
+          { id: "bc_vt", name: "Vertical", priority: 1, desc: "Regular user accesses admin. Full app takeover." },
+        ]},
+      ],
+    },
+    {
+      id: "ds", name: "Application-Level DoS", priority: null,
+      desc: "Crash or exhaust resources via targeted requests, not volumetric flooding.",
+      children: [
+        { id: "ds_cr", name: "Critical and Easy", priority: 2, desc: "Single request crashes app. ReDoS, OOM triggers.", children: [] },
+        { id: "ds_md", name: "Medium and Easy", priority: 3, desc: "Partial impact. Heavy queries lock DB tables.", children: [] },
+        { id: "ds_lw", name: "Low or Difficult", priority: 4, desc: "Requires significant resources. Slow loris attacks.", children: [] },
+      ],
+    },
+    {
+      id: "cy", name: "Cryptographic Issues", priority: null,
+      desc: "Broken algorithms, missing encryption, weak keys.",
+      children: [
+        { id: "cy_ne", name: "No Encryption in Transit", priority: null, desc: "Data without TLS, visible to interceptors.", children: [
+          { id: "ne_sa", name: "Sensitive Actions", priority: 3, desc: "Payment/medical data over HTTP in plaintext." },
+          { id: "ne_lg", name: "Login Page", priority: 3, desc: "Credentials over HTTP. Visible on network." },
+        ]},
+        { id: "cy_wc", name: "Weak Cipher Suite", priority: 4, desc: "Broken ciphers (RC4, DES). May decrypt traffic.", children: [] },
+        { id: "cy_wh", name: "Weak Hashing", priority: 4, desc: "MD5/SHA1 without salt. Crackable in seconds.", children: [] },
+      ],
+    },
+    {
+      id: "mb", name: "Mobile Security", priority: null,
+      desc: "iOS/Android app vulns — insecure storage, missing protections.",
+      children: [
+        { id: "mb_bp", name: "Binary Protections", priority: null, desc: "App lacks reverse engineering protections.", children: [
+          { id: "bp_ob", name: "No Obfuscation", priority: 5, desc: "Code readable when decompiled. Reveals secrets." },
+          { id: "bp_jb", name: "No Root Detection", priority: 5, desc: "Runs on rooted/jailbroken devices." },
+        ]},
+        { id: "mb_is", name: "Insecure Storage", priority: null, desc: "Sensitive data stored insecurely on device.", children: [
+          { id: "is_lg", name: "Data in Logs", priority: 4, desc: "Tokens in system logs. Accessible via USB debug." },
+          { id: "is_ct", name: "Cleartext Storage", priority: 3, desc: "Plaintext in SharedPreferences/plist/SQLite." },
+        ]},
+      ],
+    },
+    {
+      id: "ai", name: "AI / ML Security", priority: null,
+      desc: "LLM and AI vulns. Prompt injection, data poisoning, model theft.",
+      children: [
+        { id: "ai_pi", name: "Prompt Injection", priority: null, desc: "Override AI system prompts with injected instructions.", children: [
+          { id: "pi_dr", name: "Direct", priority: 2, desc: "User crafts prompts to ignore instructions or leak system prompts." },
+          { id: "pi_in", name: "Indirect", priority: 2, desc: "Hidden instructions in data AI processes. AI follows silently." },
+        ]},
+        { id: "ai_dp", name: "Data Poisoning", priority: 2, desc: "Corrupt training data for backdoors or misclassifications.", children: [] },
+        { id: "ai_mt", name: "Model Theft", priority: 2, desc: "Steal model via API queries or direct file access.", children: [] },
+        { id: "ai_ea", name: "Excessive Agency", priority: 3, desc: "AI has too many permissions. Manipulated AI causes real damage.", children: [] },
+        { id: "ai_io", name: "Insecure Output", priority: 3, desc: "AI output unsanitized. Prompt injection leads to XSS/SQLi.", children: [] },
+      ],
+    },
+    {
+      id: "bl", name: "Blockchain / dApp", priority: null,
+      desc: "Smart contract bugs cause immediate, irreversible financial loss.",
+      children: [
+        { id: "bl_sc", name: "Smart Contract", priority: null, desc: "Immutable code flaws. Cannot patch after deployment.", children: [
+          { id: "sc_re", name: "Reentrancy", priority: 1, desc: "Re-enter function before state update, drain funds. DAO hack ($60M)." },
+          { id: "sc_of", name: "Integer Overflow", priority: 2, desc: "uint256 max + 1 = 0. Manipulate balances." },
+          { id: "sc_ac", name: "Access Control", priority: 1, desc: "Admin functions callable by anyone." },
+        ]},
+      ],
+    },
+    {
+      id: "io", name: "Indicators of Compromise", priority: null,
+      desc: "Evidence of existing breach — leaked creds, malware, data exposure.",
+      children: [
+        { id: "io_mw", name: "Malware", priority: 2, desc: "Active malware found — web shells, cryptominers, backdoors.", children: [] },
+        { id: "io_db", name: "Data Breach / Leak", priority: null, desc: "Org data on paste sites, dark web, public buckets.", children: [
+          { id: "db_cr", name: "Credentials Exposed", priority: 1, desc: "Creds in breach dumps. Immediate password resets needed." },
+          { id: "db_sc", name: "Source Code Exposed", priority: 2, desc: "Source code leaked. Contains secrets and vulns." },
+          { id: "db_cd", name: "Customer Data", priority: 1, desc: "Customer PII exposed. Legal obligations, GDPR fines." },
+        ]},
+        { id: "io_ph", name: "Phishing", priority: 3, desc: "Active phishing — lookalike domains, fake login pages.", children: [] },
+      ],
+    },
+    {
+      id: "au", name: "Automotive Security", priority: null,
+      desc: "Connected vehicle vulns. Safety-critical.",
+      children: [
+        { id: "au_if", name: "Infotainment", priority: null, desc: "In-vehicle entertainment. Android/Linux with internet.", children: [
+          { id: "if_dl", name: "Data Leakage", priority: 3, desc: "Leaks location, contacts, phone data." },
+        ]},
+        { id: "au_tl", name: "Telematics", priority: null, desc: "Remote vehicle control — GPS, start, OTA.", children: [
+          { id: "tl_ua", name: "Unauthorized Access", priority: 1, desc: "Remote unlock/start/track. Enables vehicle theft." },
+        ]},
+      ],
+    },
+    {
+      id: "ci", name: "Client-Side Injection", priority: null,
+      desc: "Client-side injection. Generally lower impact than server-side.",
+      children: [
+        { id: "ci_bp", name: "Binary Planting", priority: 3, desc: "App loads DLLs from attacker locations.", children: [] },
+        { id: "ci_cr", name: "CRLF Injection", priority: 4, desc: "Inject newlines into HTTP headers. Split responses.", children: [] },
+        { id: "ci_cs", name: "CSS Injection", priority: 4, desc: "Inject CSS to exfiltrate data or fake UI.", children: [] },
+      ],
+    },
+  ],
+};
+
+const PRIORITY_COLORS = {
+  1: "#e74c3c",
+  2: "#e67e22",
+  3: "#f39c12",
+  4: "#3498db",
+  5: "#95a5a6",
+};
+
+const PRIORITY_NAMES = {
+  1: "CRITICAL",
+  2: "HIGH",
+  3: "MEDIUM",
+  4: "LOW",
+  5: "INFO",
+};
+
+const PARENT_COLOR = "#6ba3d6";
+const ROOT_COLOR = "#3a7bd5";
+
+function getColor(node) {
+  if (node.id === "root") return ROOT_COLOR;
+  if (node.priority != null) return PRIORITY_COLORS[node.priority] || "#95a5a6";
+  return PARENT_COLOR;
+}
+
+function textWidth(text, fontSize) {
+  return text.length * fontSize * 0.55 + 12;
+}
+
+function InfoPanel({ node, position, onClose, isDark }) {
+  if (!node || !node.desc) return null;
+
+  const color = getColor(node);
+  const pName = node.priority != null ? PRIORITY_NAMES[node.priority] : "VARIES";
+  const pColor = node.priority != null ? PRIORITY_COLORS[node.priority] : "#a78bfa";
+
+  const bgColor = isDark ? "#1e1e2e" : "#ffffff";
+  const borderColor = isDark ? "#333" : "#e0e0e0";
+  const titleColor = isDark ? "#eee" : "#222";
+  const bodyColor = isDark ? "#ccc" : "#444";
+  const footerColor = isDark ? "#666" : "#bbb";
+
+  const maxX = typeof window !== "undefined" ? window.innerWidth - 350 : 500;
+  const left = Math.max(8, Math.min(position.x, maxX));
+  const top = Math.max(48, position.y);
+
+  return (
+    <div
+      onClick={(e) => e.stopPropagation()}
+      style={{
+        position: "absolute",
+        left: left,
+        top: top,
+        width: 320,
+        background: bgColor,
+        border: "1px solid " + borderColor,
+        borderRadius: 10,
+        zIndex: 100,
+        overflow: "hidden",
+        boxShadow: isDark
+          ? "0 8px 32px rgba(0,0,0,0.5)"
+          : "0 8px 32px rgba(0,0,0,0.12)",
+        fontFamily: "'IBM Plex Sans', sans-serif",
+        animation: "panelFade 0.15s ease-out",
+      }}
+    >
+      <div
+        style={{
+          padding: "10px 14px",
+          background: color + (isDark ? "18" : "0a"),
+          borderBottom: "1px solid " + (isDark ? "#333" : "#f0f0f0"),
+          display: "flex",
+          alignItems: "flex-start",
+          gap: 10,
+        }}
+      >
+        <div
+          style={{
+            width: 10,
+            height: 10,
+            borderRadius: "50%",
+            background: color,
+            marginTop: 4,
+            flexShrink: 0,
+            boxShadow: "0 0 8px " + color + "66",
+          }}
+        />
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: titleColor, lineHeight: 1.3 }}>
+            {node.name}
+          </div>
+          <div
+            style={{
+              display: "inline-block",
+              marginTop: 4,
+              padding: "1px 8px",
+              fontSize: 10,
+              fontWeight: 700,
+              fontFamily: "'IBM Plex Mono', monospace",
+              letterSpacing: 1,
+              color: pColor,
+              background: pColor + "18",
+              borderRadius: 3,
+              border: "1px solid " + pColor + "33",
+            }}
+          >
+            {pName}
+          </div>
+        </div>
+        <button
+          onClick={onClose}
+          style={{
+            background: "none",
+            border: "none",
+            cursor: "pointer",
+            fontSize: 18,
+            color: isDark ? "#666" : "#ccc",
+            padding: "0 4px",
+            lineHeight: 1,
+          }}
+        >
+          x
+        </button>
+      </div>
+      <div
+        style={{
+          padding: "12px 14px",
+          fontSize: 13,
+          lineHeight: 1.7,
+          color: bodyColor,
+          maxHeight: 220,
+          overflowY: "auto",
+        }}
+      >
+        {node.desc}
+      </div>
+      <div
+        style={{
+          padding: "6px 14px 8px",
+          borderTop: "1px solid " + (isDark ? "#2a2a3a" : "#f5f5f5"),
+          fontSize: 10,
+          color: footerColor,
+          fontFamily: "'IBM Plex Mono', monospace",
+        }}
+      >
+        {node.children && node.children.length > 0
+          ? node.children.length + " sub-categories"
+          : "Leaf node"}
+      </div>
+    </div>
+  );
+}
+
+function VRTMindMap() {
+  const containerRef = useRef(null);
+  const touchRef = useRef(null);
+
+  const [isDark, setIsDark] = useState(false);
+  const [expanded, setExpanded] = useState(new Set(["root"]));
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(0.82);
+  const [dragging, setDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [hovered, setHovered] = useState(null);
+  const [selectedId, setSelectedId] = useState(null);
+  const [infoPos, setInfoPos] = useState({ x: 0, y: 0 });
+  const [search, setSearch] = useState("");
+
+  const toggleNode = useCallback((id) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }, []);
+
+  const expandAll = () => {
+    const s = new Set();
+    const walk = (n) => {
+      if (n.children && n.children.length > 0) {
+        s.add(n.id);
+        n.children.forEach(walk);
+      }
+    };
+    walk(VRT);
+    setExpanded(s);
+  };
+
+  const collapseAll = () => {
+    setExpanded(new Set(["root"]));
+    setSelectedId(null);
+  };
+
+  const searchMatches = useMemo(() => {
+    if (!search.trim()) return new Set();
+    const m = new Set();
+    const term = search.toLowerCase();
+    const walk = (n) => {
+      if (
+        n.name.toLowerCase().includes(term) ||
+        (n.desc && n.desc.toLowerCase().includes(term))
+      ) {
+        m.add(n.id);
+      }
+      (n.children || []).forEach(walk);
+    };
+    walk(VRT);
+    return m;
+  }, [search]);
+
+  // LAYOUT: Root on left-center, all branches fan out to the right
+  const layout = useMemo(() => {
+    const nodes = [];
+    const edges = [];
+    const ROW_H = 28;
+    const COL_W = 230;
+
+    const countRows = (node) => {
+      if (!expanded.has(node.id) || !node.children || node.children.length === 0) {
+        return 1;
+      }
+      return node.children.reduce((sum, c) => sum + countRows(c), 0);
+    };
+
+    const totalRows = countRows(VRT);
+    const totalH = totalRows * ROW_H;
+
+    const layoutNode = (node, depth, yStart, yEnd, parentEntry) => {
+      const midY = (yStart + yEnd) / 2;
+      const x = depth * COL_W;
+      const hasKids = node.children && node.children.length > 0;
+      const isExp = expanded.has(node.id);
+
+      const entry = {
+        x: x,
+        y: midY,
+        node: node,
+        isExp: isExp,
+        hasKids: hasKids,
+        depth: depth,
+      };
+      nodes.push(entry);
+
+      if (parentEntry) {
+        edges.push({ from: parentEntry, to: entry });
+      }
+
+      if (isExp && hasKids) {
+        const childRowCounts = node.children.map((c) => countRows(c));
+        const totalChildRows = childRowCounts.reduce((a, b) => a + b, 0);
+        let curY = yStart;
+
+        node.children.forEach((child, i) => {
+          const span = (childRowCounts[i] / totalChildRows) * (yEnd - yStart);
+          layoutNode(child, depth + 1, curY, curY + span, entry);
+          curY += span;
+        });
+      }
+    };
+
+    layoutNode(VRT, 0, -totalH / 2, totalH / 2, null);
+    return { nodes: nodes, edges: edges };
+  }, [expanded]);
+
+  // Center view on mount
+  useEffect(() => {
+    if (containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+      setPan({ x: 80, y: rect.height / 2 });
+    }
+  }, []);
+
+  // Wheel zoom
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const handler = (e) => {
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? -0.05 : 0.05;
+      setZoom((z) => Math.max(0.12, Math.min(3, z + delta)));
+    };
+    el.addEventListener("wheel", handler, { passive: false });
+    return () => el.removeEventListener("wheel", handler);
+  }, []);
+
+  const findNode = (id, node) => {
+    if (!node) node = VRT;
+    if (node.id === id) return node;
+    for (const c of node.children || []) {
+      const found = findNode(id, c);
+      if (found) return found;
+    }
+    return null;
+  };
+
+  const handleNodeClick = (e, pos) => {
+    e.stopPropagation();
+    if (pos.hasKids) {
+      toggleNode(pos.node.id);
+    }
+    setSelectedId(null);
+  };
+
+  const selectedNode = selectedId ? findNode(selectedId) : null;
+
+  // Theme colors
+  const bgColor = isDark ? "#121218" : "#f7f8fa";
+  const lineColor = isDark ? "#333" : "#d0d4da";
+  const textColor = isDark ? "#bbb" : "#555";
+  const textHighlight = isDark ? "#eee" : "#111";
+  const matchBg = isDark ? "#2a2a1a" : "#fffbeb";
+  const matchBorder = isDark ? "#886600" : "#fbbf24";
+  const hoverBg = isDark ? "#1a2a3a" : "#f0f7ff";
+  const selectBg = isDark ? "#1a2440" : "#e8f0fe";
+  const headerBg = isDark ? "#1a1a24" : "#ffffff";
+  const headerBorder = isDark ? "#2a2a3a" : "#eaeaea";
+
+  const btnStyle = {
+    padding: "5px 12px",
+    fontSize: 12,
+    fontWeight: 600,
+    fontFamily: "'IBM Plex Sans', sans-serif",
+    color: isDark ? "#999" : "#666",
+    background: isDark ? "#1e1e2e" : "#fafafa",
+    border: "1px solid " + (isDark ? "#333" : "#ddd"),
+    borderRadius: 5,
+    cursor: "pointer",
+  };
+
+  const zoomBtnStyle = {
+    width: 28,
+    height: 28,
+    fontSize: 16,
+    fontWeight: 600,
+    color: isDark ? "#999" : "#666",
+    background: isDark ? "#1e1e2e" : "#fff",
+    border: "1px solid " + (isDark ? "#333" : "#ddd"),
+    borderRadius: 5,
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  };
+
+  return (
+    <div
+      style={{
+        width: "100%",
+        height: "100vh",
+        background: bgColor,
+        fontFamily: "'IBM Plex Sans', sans-serif",
+        display: "flex",
+        flexDirection: "column",
+        overflow: "hidden",
+        transition: "background 0.3s",
+      }}
+    >
+      <link
+        href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap"
+        rel="stylesheet"
+      />
+      <style>
+        {
+          "@keyframes panelFade{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}" +
+          "::-webkit-scrollbar{width:4px}" +
+          "::-webkit-scrollbar-thumb{background:" + (isDark ? "#444" : "#ddd") + ";border-radius:2px}"
+        }
+      </style>
+
+      {/* HEADER */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
+          padding: "8px 16px",
+          background: headerBg,
+          borderBottom: "1px solid " + headerBorder,
+          zIndex: 20,
+          flexWrap: "wrap",
+          flexShrink: 0,
+          transition: "background 0.3s",
+        }}
+      >
+        <div style={{ lineHeight: 1.2 }}>
+          <div style={{ fontSize: 16, fontWeight: 700, color: isDark ? "#eee" : "#222" }}>
+            Bugcrowd VRT
+          </div>
+          <div
+            style={{
+              fontSize: 11,
+              color: isDark ? "#666" : "#aaa",
+              fontFamily: "'IBM Plex Mono', monospace",
+            }}
+          >
+            Vulnerability Rating Taxonomy · Developed by{" "}
+            <span style={{ color: ROOT_COLOR, fontWeight: 600 }}>roshanxcvi</span>
+          </div>
+        </div>
+
+        <div style={{ flex: 1, minWidth: 120, maxWidth: 220 }}>
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search vulnerabilities..."
+            style={{
+              width: "100%",
+              padding: "6px 12px",
+              border: "1px solid " + (isDark ? "#333" : "#ddd"),
+              borderRadius: 6,
+              fontSize: 13,
+              fontFamily: "'IBM Plex Mono', monospace",
+              background: isDark ? "#1e1e2e" : "#fafafa",
+              outline: "none",
+              color: isDark ? "#ddd" : "#333",
+              transition: "background 0.3s",
+            }}
+          />
+        </div>
+
+        <button onClick={expandAll} style={btnStyle}>Expand All</button>
+        <button onClick={collapseAll} style={btnStyle}>Collapse</button>
+        <button
+          onClick={() => {
+            setZoom(0.82);
+            if (containerRef.current) {
+              const r = containerRef.current.getBoundingClientRect();
+              setPan({ x: 80, y: r.height / 2 });
+            }
+          }}
+          style={btnStyle}
+        >
+          Reset
+        </button>
+
+        {/* DARK MODE TOGGLE */}
+        <div
+          onClick={() => setIsDark(!isDark)}
+          style={{
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            padding: "4px 12px",
+            borderRadius: 20,
+            background: isDark ? "#2a2a3a" : "#f0f0f0",
+            border: "1px solid " + (isDark ? "#444" : "#ddd"),
+            transition: "all 0.3s",
+            userSelect: "none",
+          }}
+        >
+          <span style={{ fontSize: 13 }}>{isDark ? "\u{1F319}" : "\u{2600}\u{FE0F}"}</span>
+          <span
+            style={{
+              fontSize: 12,
+              fontWeight: 600,
+              color: isDark ? "#aaa" : "#666",
+              fontFamily: "'IBM Plex Mono', monospace",
+            }}
+          >
+            {isDark ? "Dark" : "Light"}
+          </span>
+        </div>
+
+        {/* LEGEND */}
+        <div style={{ display: "flex", gap: 6, alignItems: "center", marginLeft: "auto", flexWrap: "wrap" }}>
+          {[
+            [1, "P1", "#e74c3c"],
+            [2, "P2", "#e67e22"],
+            [3, "P3", "#f39c12"],
+            [4, "P4", "#3498db"],
+            [5, "P5", "#95a5a6"],
+          ].map(function (item) {
+            return (
+              <div key={item[0]} style={{ display: "flex", alignItems: "center", gap: 2 }}>
+                <div style={{ width: 7, height: 7, borderRadius: "50%", background: item[2] }} />
+                <span
+                  style={{
+                    fontSize: 11,
+                    color: isDark ? "#777" : "#888",
+                    fontFamily: "'IBM Plex Mono', monospace",
+                  }}
+                >
+                  {item[1]}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* SVG CANVAS */}
+      <div
+        ref={containerRef}
+        style={{
+          flex: 1,
+          cursor: dragging ? "grabbing" : "grab",
+          overflow: "hidden",
+          position: "relative",
+        }}
+        onMouseDown={(e) => {
+          if (e.button === 0) {
+            setDragging(true);
+            setDragStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
+          }
+        }}
+        onMouseMove={(e) => {
+          if (dragging) {
+            setPan({ x: e.clientX - dragStart.x, y: e.clientY - dragStart.y });
+          }
+        }}
+        onMouseUp={() => setDragging(false)}
+        onMouseLeave={() => setDragging(false)}
+        onTouchStart={(e) => {
+          if (e.touches.length === 1) {
+            touchRef.current = {
+              x: e.touches[0].clientX - pan.x,
+              y: e.touches[0].clientY - pan.y,
+            };
+          }
+        }}
+        onTouchMove={(e) => {
+          if (e.touches.length === 1 && touchRef.current) {
+            setPan({
+              x: e.touches[0].clientX - touchRef.current.x,
+              y: e.touches[0].clientY - touchRef.current.y,
+            });
+          }
+        }}
+        onTouchEnd={() => {
+          touchRef.current = null;
+        }}
+        onClick={() => setSelectedId(null)}
+      >
+        <svg width="100%" height="100%" style={{ display: "block" }}>
+          <defs>
+            <filter id="nodeGlow">
+              <feGaussianBlur stdDeviation="2.5" result="blur" />
+              <feMerge>
+                <feMergeNode in="blur" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+          </defs>
+          <rect width="100%" height="100%" fill={bgColor} />
+          <g transform={"translate(" + pan.x + "," + pan.y + ") scale(" + zoom + ")"}>
+            {/* EDGES */}
+            {layout.edges.map(function (edge, idx) {
+              var dx = edge.to.x - edge.from.x;
+              var d =
+                "M" + edge.from.x + "," + edge.from.y +
+                " C" + (edge.from.x + dx * 0.5) + "," + edge.from.y +
+                " " + (edge.to.x - dx * 0.5) + "," + edge.to.y +
+                " " + edge.to.x + "," + edge.to.y;
+              return (
+                <path
+                  key={idx}
+                  d={d}
+                  fill="none"
+                  stroke={lineColor}
+                  strokeWidth={1}
+                  opacity={0.7}
+                />
+              );
+            })}
+
+            {/* NODES */}
+            {layout.nodes.map(function (pos) {
+              var node = pos.node;
+              var isRoot = node.id === "root";
+              var color = getColor(node);
+              var isMatch = searchMatches.has(node.id);
+              var isHov = hovered === node.id;
+              var isSel = selectedId === node.id;
+              var fontSize = isRoot ? 0 : pos.depth === 1 ? 14 : pos.depth === 2 ? 12.5 : 11.5;
+              var tw = isRoot ? 0 : textWidth(node.name, fontSize);
+              var circleR = isRoot ? 12 : pos.depth === 1 ? 6 : 5;
+
+              return (
+                <g
+                  key={node.id}
+                  transform={"translate(" + pos.x + "," + pos.y + ")"}
+                  style={{ cursor: "pointer" }}
+                  onClick={function (e) { handleNodeClick(e, pos); }}
+                  onMouseEnter={function () { setHovered(node.id); }}
+                  onMouseLeave={function () { setHovered(null); }}
+                >
+                  {/* Highlight backgrounds */}
+                  {!isRoot && isMatch && (
+                    <rect x={12} y={-10} width={tw + 8} height={20} rx={4} fill={matchBg} stroke={matchBorder} strokeWidth={1} />
+                  )}
+                  {!isRoot && (isHov || isSel) && !isMatch && (
+                    <rect x={12} y={-10} width={tw + 8} height={20} rx={4} fill={isSel ? selectBg : hoverBg} stroke={isSel ? ROOT_COLOR + "44" : "none"} strokeWidth={isSel ? 1 : 0} />
+                  )}
+
+                  {/* Circle */}
+                  <circle
+                    cx={0}
+                    cy={0}
+                    r={circleR}
+                    fill={color}
+                    stroke={isDark ? "#222" : "#fff"}
+                    strokeWidth={isRoot ? 3 : 1.5}
+                    filter={(isHov || isSel) ? "url(#nodeGlow)" : undefined}
+                  />
+
+                  {/* +/- */}
+                  {pos.hasKids && !isRoot && (
+                    <text x={0} y={2.5} textAnchor="middle" fill="#fff" fontSize={7} fontWeight={700} style={{ pointerEvents: "none" }}>
+                      {pos.isExp ? "\u2212" : "+"}
+                    </text>
+                  )}
+
+                  {/* Root label */}
+                  {isRoot && (
+                    <g>
+                      <text x={0} y={-22} textAnchor="middle" fill={isDark ? "#eee" : "#222"} fontSize={17} fontWeight={700} fontFamily="'IBM Plex Sans', sans-serif" style={{ pointerEvents: "none" }}>
+                        Bugcrowd VRT
+                      </text>
+                      <text x={0} y={26} textAnchor="middle" fill={isDark ? "#555" : "#aaa"} fontSize={10} fontFamily="'IBM Plex Mono', monospace" style={{ pointerEvents: "none" }}>
+                        click to explore
+                      </text>
+                    </g>
+                  )}
+
+                  {/* Branch label */}
+                  {!isRoot && (
+                    <text
+                      x={14}
+                      y={4}
+                      fill={isSel ? textHighlight : isHov ? textHighlight : textColor}
+                      fontSize={fontSize}
+                      fontWeight={pos.depth === 1 ? 600 : 400}
+                      fontFamily="'IBM Plex Sans', sans-serif"
+                      style={{ pointerEvents: "none", userSelect: "none" }}
+                    >
+                      {node.name}
+                    </text>
+                  )}
+
+                  {/* Priority badge */}
+                  {!isRoot && node.priority != null && (
+                    <g transform={"translate(" + (tw + 14) + ",-6)"}>
+                      <circle cx={6} cy={6} r={6} fill={PRIORITY_COLORS[node.priority]} opacity={isDark ? 0.25 : 0.18} />
+                      <text x={6} y={9} textAnchor="middle" fill={PRIORITY_COLORS[node.priority]} fontSize={7.5} fontWeight={700} fontFamily="'IBM Plex Mono', monospace" style={{ pointerEvents: "none" }}>
+                        {node.priority}
+                      </text>
+                    </g>
+                  )}
+
+                  {/* Info button - click to show details */}
+                  {!isRoot && node.desc && (
+                    <g
+                      transform={"translate(" + (tw + (node.priority != null ? 28 : 14)) + ",-7)"}
+                      style={{ cursor: "pointer" }}
+                      onClick={function (e) {
+                        e.stopPropagation();
+                        var rect = containerRef.current.getBoundingClientRect();
+                        setInfoPos({
+                          x: pos.x * zoom + pan.x + 30,
+                          y: pos.y * zoom + pan.y - 10,
+                        });
+                        setSelectedId(node.id === selectedId ? null : node.id);
+                      }}
+                    >
+                      <circle cx={8} cy={8} r={8} fill={isDark ? "#2a2a3a" : "#e8edf2"} stroke={isDark ? "#555" : "#b0bec5"} strokeWidth={1} />
+                      <text x={8} y={12} textAnchor="middle" fill={isDark ? "#aaa" : "#607d8b"} fontSize={10} fontWeight={700} fontFamily="'IBM Plex Mono', monospace" style={{ pointerEvents: "none" }}>
+                        i
+                      </text>
+                    </g>
+                  )}
+                </g>
+              );
+            })}
+          </g>
+        </svg>
+
+        {/* INFO PANEL */}
+        {selectedNode && (
+          <InfoPanel
+            node={selectedNode}
+            position={infoPos}
+            onClose={function () { setSelectedId(null); }}
+            isDark={isDark}
+          />
+        )}
+
+        {/* ZOOM CONTROLS */}
+        <div style={{ position: "absolute", bottom: 14, right: 14, display: "flex", flexDirection: "column", gap: 3, zIndex: 5 }}>
+          <button onClick={function () { setZoom(function (z) { return Math.min(3, z + 0.15); }); }} style={zoomBtnStyle}>
+            +
+          </button>
+          <div
+            style={{
+              textAlign: "center",
+              fontSize: 9,
+              color: isDark ? "#666" : "#aaa",
+              fontFamily: "'IBM Plex Mono', monospace",
+              background: isDark ? "#1e1e2e" : "#fff",
+              padding: "2px 4px",
+              borderRadius: 3,
+              border: "1px solid " + (isDark ? "#333" : "#e0e0e0"),
+            }}
+          >
+            {Math.round(zoom * 100)}%
+          </div>
+          <button onClick={function () { setZoom(function (z) { return Math.max(0.12, z - 0.15); }); }} style={zoomBtnStyle}>
+            -
+          </button>
+        </div>
+
+        {/* HELP TEXT */}
+        <div
+          style={{
+            position: "absolute",
+            bottom: 14,
+            left: 14,
+            fontSize: 11,
+            color: isDark ? "#555" : "#bbb",
+            fontFamily: "'IBM Plex Mono', monospace",
+            background: isDark ? "rgba(18,18,24,0.9)" : "rgba(255,255,255,0.9)",
+            padding: "4px 8px",
+            borderRadius: 4,
+            border: "1px solid " + (isDark ? "#2a2a3a" : "#eee"),
+          }}
+        >
+          Scroll to zoom - Drag to pan - Click (i) for details
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(React.createElement(VRTMindMap));
+  </script>
+</body>
+</html>
